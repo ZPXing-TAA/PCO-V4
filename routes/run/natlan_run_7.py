@@ -1,0 +1,11 @@
+ROUTE = [
+    ("sleep",1),
+    ("turn_right_45",),
+    ("turn_right_30",),
+    ("record_start",),
+    ("run",5),    
+    ("record_stop",),
+    ("sleep",1),
+    ("teleport",)
+]
+# portal 2
