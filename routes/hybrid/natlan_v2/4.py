@@ -8,6 +8,6 @@ ROUTE = [
     ("run",10),
     ("teleport",)
 ]
-PORTAL = [595, 1405]
+PORTAL = [1425, 690]
 
-NEXT_PORTAL=[310,1400]
+NEXT_PORTAL=[1430,965]

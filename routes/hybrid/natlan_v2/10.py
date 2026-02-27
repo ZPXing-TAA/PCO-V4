@@ -8,8 +8,8 @@ ROUTE = [
     ("record_start",),
     ("run",10),
     ("record_stop",),
-    # ("teleport",)
+    ("teleport",)
 ]
-PORTAL=[680,1310]
+PORTAL=[1355,590]
 
-NEXT_PORTAL=[370,1430]
+NEXT_PORTAL=[1455,915]

@@ -21,7 +21,7 @@ PROJECT_ROOT = os.environ.get(
 )
 CONFIG_ROOT = os.environ.get(
     "AUTO_CONFIG_ROOT_HUAWEIMATE",
-    os.path.join(PROJECT_ROOT, "render_configs_huaweimate"),
+    os.path.join(PROJECT_ROOT, "render_configs"),
 )
 VIDEO_BASE = os.environ.get(
     "AUTO_VIDEO_BASE_HUAWEIMATE",
@@ -32,6 +32,7 @@ GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
 # None: 自动扫描 natlan 目录下的数字 route（1.py, 2.py, ...）
 # 示例: [1, 2, 3]
 ROUTE_SUFFIXES: Optional[List[int]] = None
+SKIP_ROUTE_SUFFIXES: List[int] = []
 
 # 每条 route 跑多少个渲染配置
 TOTAL_CONFIGS_PER_ROUTE = 80
@@ -40,6 +41,7 @@ SKIP_RECORDED = 0
 
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
+RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -48,6 +50,25 @@ ACTION_BASE_COUNTS = {
         "swim": 0,
     }
 }
+
+
+def _resolve_skip_route_suffixes() -> List[int]:
+    skip = set(SKIP_ROUTE_SUFFIXES)
+    raw = os.environ.get("AUTO_SKIP_ROUTE_SUFFIXES", "").strip()
+    if not raw:
+        return sorted(skip)
+
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        if not item.isdigit():
+            raise ValueError(
+                f"Invalid route suffix in AUTO_SKIP_ROUTE_SUFFIXES: {item!r}. "
+                "Use comma-separated positive integers, e.g. 2,5,9"
+            )
+        skip.add(int(item))
+    return sorted(skip)
 
 SRC_W = int(os.environ.get("AUTO_SRC_W", "2848"))
 SRC_H = int(os.environ.get("AUTO_SRC_H", "1276"))
@@ -217,6 +238,7 @@ def run_route_hybrid(
                     recorder.stop()
                 recorder = Recorder(video_path)
                 recorder.start()
+                time.sleep(RECORD_START_SETTLE_SEC)
                 continue
 
             if name == "record_stop":
@@ -325,6 +347,12 @@ def run_multi_routes():
     route_suffixes = ROUTE_SUFFIXES if ROUTE_SUFFIXES is not None else _discover_route_suffixes()
     if not route_suffixes:
         raise ValueError("No route suffix found.")
+    skip_suffixes = set(_resolve_skip_route_suffixes())
+    if skip_suffixes:
+        route_suffixes = [s for s in route_suffixes if s not in skip_suffixes]
+        print(f"[INFO] Skip routes: {sorted(skip_suffixes)}")
+    if not route_suffixes:
+        raise ValueError("No route suffix left after skip filter.")
 
     configs = _collect_configs(CONFIG_ROOT, START_FROM_CONFIG, TOTAL_CONFIGS_PER_ROUTE)
     if not configs:

@@ -1,7 +1,7 @@
 import importlib.util
 import os
 
-ROUTE_SUFFIX = 1
+ROUTE_SUFFIX = 10
 
 os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_huaweipura"
 from recording.recorder import Recorder

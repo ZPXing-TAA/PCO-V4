@@ -38,13 +38,14 @@ BASE_POINTS: PointMap = {
     "CONFIRM_TELEPORT": (2450, 1180),
     "ADJUST_GAME_TIME_P1": (175, 60),
     "ADJUST_GAME_TIME_P2": (165, 870),
-    "ADJUST_GAME_TIME_S1": (2025, 535),
-    "ADJUST_GAME_TIME_S2": (2025, 635),
-    "ADJUST_GAME_TIME_S3": (1885, 635),
-    "ADJUST_GAME_TIME_S4": (1885, 565),
-    "ADJUST_GAME_TIME_S5": (1985, 565),
-    "ADJUST_GAME_TIME_P3": (2000, 1175),
-    "ADJUST_GAME_TIME_P4": (165, 90),
+    "ADJUST_GAME_TIME_S1": (2125, 515),
+    "ADJUST_GAME_TIME_S2": (2125, 615),
+    "ADJUST_GAME_TIME_S3": (2005, 615),
+    "ADJUST_GAME_TIME_S4": (2005, 515),
+    "ADJUST_GAME_TIME_S5": (2125, 515),
+    "ADJUST_GAME_TIME_P3": (2080, 1200),
+    "ADJUST_GAME_TIME_P4": (2654, 62),
+    "ADJUST_GAME_TIME_P5": (165, 90),
 }
 
 POINT_GROUPS: Dict[str, Tuple[str, ...]] = {
@@ -138,6 +139,8 @@ def build_actions(
         name: _resolve_point(name, mapped_xy, device_offsets, use_env_offsets)
         for name, mapped_xy in mapped_points.items()
     }
+    glide_hold_ms = int(os.environ.get("AUTO_GLIDE_UTIL_HOLD_MS", "1400"))
+    glide_after_util_delay = float(os.environ.get("AUTO_GLIDE_AFTER_UTIL_DELAY_SEC", "0.7"))
 
     def tap(x: int, y: int):
         os.system(f"adb shell input tap {x} {y}")
@@ -179,13 +182,13 @@ def build_actions(
     def util():
         tap(*points["UTIL"])
 
-    def long_util():
+    def long_util(seconds: float = 1.0):
         x, y = points["UTIL"]
-        swipe(x, y, x, y, 1000)
+        swipe(x, y, x, y, int(seconds * 1000))
 
     def glide(seconds):
-        long_util()
-        time.sleep(1)
+        long_util(glide_hold_ms / 1000.0)
+        time.sleep(glide_after_util_delay)
         tap(*points["JUMP"])
         move(seconds)
 
@@ -244,6 +247,8 @@ def build_actions(
         tap(*points["ADJUST_GAME_TIME_P3"])
         time.sleep(20)
         tap(*points["ADJUST_GAME_TIME_P4"])
+        time.sleep(1)
+        tap(*points["ADJUST_GAME_TIME_P5"])
         time.sleep(5)
 
     return {
