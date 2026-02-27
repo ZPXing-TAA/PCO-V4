@@ -51,7 +51,7 @@ PROJECT_ROOT = os.environ.get(
     os.path.expanduser("~/CODEZONE/PCO/Power-Optimization"),
 )
 CONFIG_ROOT = os.environ.get("AUTO_CONFIG_ROOT_OFX", os.path.join(PROJECT_ROOT, "render_configs_ofx"))
-VIDEO_BASE = os.environ.get("AUTO_VIDEO_BASE_OFX", os.path.join(PROJECT_ROOT, "Recordings", "ofx"))
+VIDEO_BASE = os.environ.get("AUTO_VIDEO_BASE_OFX", r"D:/recordings/ofx")
 START_FROM = 1
 Skip_recorded = 0
 GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")

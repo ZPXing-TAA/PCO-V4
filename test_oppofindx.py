@@ -47,7 +47,7 @@ PROJECT_ROOT = os.environ.get(
     "AUTO_PROJECT_ROOT",
     os.path.expanduser("~/CODEZONE/PCO/Power-Optimization"),
 )
-VIDEO_DIR = os.environ.get("AUTO_DEBUG_VIDEO_DIR", os.path.join(PROJECT_ROOT, "Recordings", "debug"))
+VIDEO_DIR = os.environ.get("AUTO_DEBUG_VIDEO_DIR", r"D:/recordings/debug")
 VIDEO_NAME = "test_oppo_findx"
 
 os.makedirs(VIDEO_DIR, exist_ok=True)

@@ -25,7 +25,7 @@ CONFIG_ROOT = os.environ.get(
 )
 VIDEO_BASE = os.environ.get(
     "AUTO_VIDEO_BASE_HUAWEIMATE",
-    os.path.join(PROJECT_ROOT, "Recordings", "huaweimate"),
+    r"D:/recordings/huaweimate",
 )
 GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
 
