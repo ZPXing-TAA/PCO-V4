@@ -101,3 +101,23 @@ OFFSETS = {
 - 只要脚本正确指向 `actions.actions_<device>`，原有 route 的动作名可以按原流程执行。
 
 注意：兼容性指“执行链路不破坏”。动作落点精度取决于分辨率是否正确、以及后续是否需要补少量 `OFFSETS`。
+
+
+## Multi-route 全局计数回档
+
+当你发现某条 route 的录制从某个 `record_start` 开始错位时，不需要再手动逐个动作改 `_action_counts.json`。
+
+可在 `multiroute_*.py` 启动前设置：
+
+- `AUTO_RESTART_FROM_ROUTE=<route后缀>`（推荐）
+  - 例：`AUTO_RESTART_FROM_ROUTE=7`
+  - 含义：从 route 7 开始、从第一个 config 重新录制。
+  - 会自动把全局计数回退到 `7:1`（即 route 7 第一个 `record_start` 之前），不需要手动改 `_action_counts.json`。
+  - 回退时会按完整 route 序列重建到目标 route 前，所以 **pull 后第一次回退也不需要手动改全局计数**。
+- `AUTO_ROLLBACK_CHECKPOINT=<route后缀>:<record_start序号>`（高级）
+  - 例：`AUTO_ROLLBACK_CHECKPOINT=7:17`
+  - 含义：把全局计数精确回退到「route 7 的第 17 个 `record_start` 执行之前」。
+- `AUTO_ROLLBACK_ONLY=1`
+  - 仅执行回档并写回 `_action_counts.json`，随后退出，不开始录制。
+
+如果不设置这些环境变量，脚本行为与原来一致。

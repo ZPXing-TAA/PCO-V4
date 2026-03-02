@@ -2,7 +2,7 @@ import importlib.util
 import json
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from config.switcher import apply_render_config
 from recording.recorder import Recorder
@@ -35,6 +35,9 @@ SKIP_RECORDED = 0
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
+ROLLBACK_CHECKPOINT = os.environ.get("AUTO_ROLLBACK_CHECKPOINT", "").strip()
+ROLLBACK_ONLY = os.environ.get("AUTO_ROLLBACK_ONLY", "0").strip() == "1"
+RESTART_FROM_ROUTE = os.environ.get("AUTO_RESTART_FROM_ROUTE", "").strip()
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -150,6 +153,81 @@ def _planned_video_paths(video_base_dir, config_id, country, route_label, route_
         action_dir = os.path.join(video_base_dir, action_name, f"{country}_{index}_{route_label}")
         paths.append(os.path.join(action_dir, f"{config_id}.mp4"))
     return paths
+
+
+def _parse_rollback_checkpoint(raw: str) -> Optional[Tuple[int, int]]:
+    if not raw:
+        return None
+    parts = [item.strip() for item in raw.split(":", 1)]
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        raise ValueError(
+            "Invalid AUTO_ROLLBACK_CHECKPOINT format. Use 'routeSuffix:recordStartIndex', e.g. 7:17"
+        )
+
+    route_suffix = int(parts[0])
+    record_start_index = int(parts[1])
+    if route_suffix <= 0 or record_start_index <= 0:
+        raise ValueError("AUTO_ROLLBACK_CHECKPOINT values must be positive integers.")
+    return route_suffix, record_start_index
+
+
+def _advance_counts_by_route(route, action_counts: Dict, limit_record_starts: Optional[int] = None) -> Dict:
+    temp_counts = dict(action_counts)
+    consumed = 0
+    for i, step in enumerate(route):
+        if step[0] != "record_start":
+            continue
+        if limit_record_starts is not None and consumed >= limit_record_starts:
+            break
+        action_name = _next_action_name(route, i)
+        temp_counts[action_name] = temp_counts.get(action_name, 0) + 1
+        consumed += 1
+    return temp_counts
+
+
+def _rebuild_counts_to_checkpoint(route_suffixes: List[int], checkpoint_route: int, checkpoint_record_start: int) -> Dict:
+    country = "natlan"
+    rebuilt = dict(ACTION_BASE_COUNTS.get(country, {}))
+    target_found = False
+    for suffix in route_suffixes:
+        route_module = _load_route_module(suffix)
+        route = route_module.ROUTE
+        if suffix < checkpoint_route:
+            rebuilt = _advance_counts_by_route(route, rebuilt)
+            continue
+        if suffix == checkpoint_route:
+            rebuilt = _advance_counts_by_route(route, rebuilt, limit_record_starts=checkpoint_record_start - 1)
+            target_found = True
+            break
+        break
+
+    if not target_found:
+        raise ValueError(
+            f"Rollback route {checkpoint_route} not found in active route list: {route_suffixes}"
+        )
+    return {country: rebuilt}
+
+
+def _apply_rollback_if_needed(route_suffixes: List[int], action_counts_by_country: Dict, checkpoint_raw: str) -> bool:
+    checkpoint = _parse_rollback_checkpoint(checkpoint_raw)
+    if checkpoint is None:
+        return False
+
+    checkpoint_route, checkpoint_record_start = checkpoint
+    rebuilt_counts = _rebuild_counts_to_checkpoint(
+        route_suffixes=route_suffixes,
+        checkpoint_route=checkpoint_route,
+        checkpoint_record_start=checkpoint_record_start,
+    )
+    action_counts_by_country.clear()
+    action_counts_by_country.update(rebuilt_counts)
+    _save_action_counts(GLOBAL_COUNT_PATH, action_counts_by_country)
+    print(
+        "[ROLLBACK] Applied global counter rollback to "
+        f"route {checkpoint_route} record_start #{checkpoint_record_start}."
+    )
+    print(f"[ROLLBACK] New counts: {json.dumps(action_counts_by_country, ensure_ascii=False, sort_keys=True)}")
+    return True
 
 
 def _validate_expected_videos(
@@ -361,14 +439,38 @@ def run_multi_routes():
     if not route_suffixes:
         raise ValueError("No route suffix left after skip filter.")
 
+    rollback_route_suffixes = list(route_suffixes)
+    effective_checkpoint = ROLLBACK_CHECKPOINT
+    if RESTART_FROM_ROUTE:
+        if not RESTART_FROM_ROUTE.isdigit() or int(RESTART_FROM_ROUTE) <= 0:
+            raise ValueError("AUTO_RESTART_FROM_ROUTE must be a positive integer route suffix.")
+        restart_route = int(RESTART_FROM_ROUTE)
+        if restart_route not in route_suffixes:
+            raise ValueError(f"AUTO_RESTART_FROM_ROUTE={restart_route} not in active routes: {route_suffixes}")
+        restart_index = route_suffixes.index(restart_route)
+        route_suffixes = route_suffixes[restart_index:]
+        if not effective_checkpoint:
+            effective_checkpoint = f"{restart_route}:1"
+        print(f"[RESTART] Restart from route {restart_route} (from first config).")
+        print(f"[RESTART] Active routes: {route_suffixes}")
+
     configs = _collect_configs(CONFIG_ROOT, START_FROM_CONFIG, TOTAL_CONFIGS_PER_ROUTE)
     if not configs:
         raise ValueError("No config json found.")
 
     os.makedirs(VIDEO_BASE, exist_ok=True)
     action_counts_by_country = _load_action_counts(GLOBAL_COUNT_PATH)
+    rollback_applied = _apply_rollback_if_needed(
+        rollback_route_suffixes,
+        action_counts_by_country,
+        effective_checkpoint,
+    )
     print(f"[INFO] Route list: {route_suffixes}")
     print(f"[INFO] Config count per route: {len(configs)}")
+
+    if rollback_applied and ROLLBACK_ONLY:
+        print("[ROLLBACK] AUTO_ROLLBACK_ONLY=1, exit after rollback.")
+        return
 
     for idx, route_suffix in enumerate(route_suffixes):
         next_portal, completed, transitioned_in_last_run = run_one_route(
