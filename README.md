@@ -19,6 +19,7 @@
 - `actions/global_actions.py`：统一动作实现与映射逻辑
 - `mapping/*.py`：每台设备一个分辨率文件（仅 `WIDTH/HEIGHT`）
 - `actions/actions_*.py`：每台设备一个入口文件（选择 mapping + 可选 offsets）
+- `config/switcher.py`：渲染配置应用入口（按设备分辨率自动映射 tap/swipe 坐标）
 
 ## 现有设备文件
 
@@ -84,6 +85,14 @@ OFFSETS = {
 - `GLOBAL`：全局偏移
 - `GROUP`：动作组偏移（如 `MOVE` / `TURN` / `ATTACK`）
 - `POINT`：单个点位偏移（如 `MOVE_START` / `TURN_180_R`）
+
+## Render Config 映射规则
+
+- 基准渲染配置目录：`/Users/xingzhengpeng/CODEZONE/PCO/Power-Optimization/render_configs`
+- 该目录视为 `huaweipura` 基准坐标。
+- 调用 `apply_render_config(json_path)` 时，会自动读取当前 `GLOBAL_ACTIONS_MODULE` 对应的
+  `BASE_RESOLUTION/TARGET_RESOLUTION`，将 json 中 `tap/swipe` 坐标按分辨率比例映射到当前设备。
+- 因此同一份基准 `render_configs` 可复用于所有设备；只有个别不准时再通过设备 `OFFSETS` 微调动作。
 
 ## 兼容性说明（与原 routes）
 

@@ -3,7 +3,7 @@ import signal
 import subprocess
 import time
 
-SCRCPY_BIN = os.environ.get("SCRCPY_BIN", "scrcpy")
+SCRCPY_BIN = os.environ.get("SCRCPY_BIN", r"D:/Softwares/scrcpy-win64-v3.3.3/scrcpy.exe")
 SCRCPY_MAX_FPS = os.environ.get("SCRCPY_MAX_FPS", "60")
 SCRCPY_STARTUP_WAIT = float(os.environ.get("SCRCPY_STARTUP_WAIT", "1.0"))
 

@@ -3,8 +3,6 @@ ROUTE = [
     ("glide",10),
     ("record_stop",),
     ("jump",), 
-    ("sleep",0.5),
-    ("jump",),
     ("attack",),
     ("sleep",2,),
     ("run",2),
