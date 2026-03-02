@@ -32,9 +32,11 @@ SKIP_RECORDED = 0
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
-ROLLBACK_CHECKPOINT = os.environ.get("AUTO_ROLLBACK_CHECKPOINT", "").strip()
-ROLLBACK_ONLY = os.environ.get("AUTO_ROLLBACK_ONLY", "0").strip() == "1"
-RESTART_FROM_ROUTE = os.environ.get("AUTO_RESTART_FROM_ROUTE", "").strip()
+# Rollback controls (set in code)
+ROLLBACK_ENABLED = 0  # 1 to enable rollback
+ROLLBACK_CHECKPOINT = ""  # "routeSuffix:recordStartIndex", e.g. "7:17"
+ROLLBACK_ONLY = 0  # 1 to exit after rollback
+RESTART_FROM_ROUTE = ""  # "routeSuffix", e.g. "7"
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -179,13 +181,13 @@ def _parse_rollback_checkpoint(raw: str) -> Optional[Tuple[int, int]]:
     parts = [item.strip() for item in raw.split(":", 1)]
     if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
         raise ValueError(
-            "Invalid AUTO_ROLLBACK_CHECKPOINT format. Use 'routeSuffix:recordStartIndex', e.g. 7:17"
+            "Invalid ROLLBACK_CHECKPOINT format. Use 'routeSuffix:recordStartIndex', e.g. 7:17"
         )
 
     route_suffix = int(parts[0])
     record_start_index = int(parts[1])
     if route_suffix <= 0 or record_start_index <= 0:
-        raise ValueError("AUTO_ROLLBACK_CHECKPOINT values must be positive integers.")
+        raise ValueError("ROLLBACK_CHECKPOINT values must be positive integers.")
     return route_suffix, record_start_index
 
 
@@ -414,10 +416,10 @@ def run_multi_routes():
     effective_checkpoint = ROLLBACK_CHECKPOINT
     if RESTART_FROM_ROUTE:
         if not RESTART_FROM_ROUTE.isdigit() or int(RESTART_FROM_ROUTE) <= 0:
-            raise ValueError("AUTO_RESTART_FROM_ROUTE must be a positive integer route suffix.")
+            raise ValueError("RESTART_FROM_ROUTE must be a positive integer route suffix.")
         restart_route = int(RESTART_FROM_ROUTE)
         if restart_route not in route_suffixes:
-            raise ValueError(f"AUTO_RESTART_FROM_ROUTE={restart_route} not in active routes: {route_suffixes}")
+            raise ValueError(f"RESTART_FROM_ROUTE={restart_route} not in active routes: {route_suffixes}")
         restart_index = route_suffixes.index(restart_route)
         route_suffixes = route_suffixes[restart_index:]
         if not effective_checkpoint:
@@ -434,13 +436,13 @@ def run_multi_routes():
     rollback_applied = _apply_rollback_if_needed(
         rollback_route_suffixes,
         action_counts_by_country,
-        effective_checkpoint,
+        effective_checkpoint if ROLLBACK_ENABLED else "",
     )
     print(f"[INFO] Route list: {route_suffixes}")
     print(f"[INFO] Config count per route: {len(configs)}")
 
     if rollback_applied and ROLLBACK_ONLY:
-        print("[ROLLBACK] AUTO_ROLLBACK_ONLY=1, exit after rollback.")
+        print("[ROLLBACK] ROLLBACK_ONLY=1, exit after rollback.")
         return
 
     for idx, route_suffix in enumerate(route_suffixes):
