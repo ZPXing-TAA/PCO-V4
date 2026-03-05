@@ -9,8 +9,8 @@ os.environ["GLOBAL_ACTIONS_MODULE"] = os.environ.get(
 from engine.runner import ACTION_TABLE
 
 # Validate route range [ROUTE_START, ROUTE_END]
-ROUTE_START = 1
-ROUTE_END = 10
+ROUTE_START = 11
+ROUTE_END = 22
 
 # route folder: "natlan" or "natlan_v2"
 ROUTE_SUBDIR = "natlan_v2"

@@ -36,10 +36,10 @@ STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
 # Rollback controls (set in code)
-ROLLBACK_ENABLED = 0  # 1 to enable rollback
-ROLLBACK_CHECKPOINT = "18:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
+ROLLBACK_ENABLED = 0 # 1 to enable rollback
+ROLLBACK_CHECKPOINT = "21:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
 ROLLBACK_ONLY = 1  # 1 to exit after rollback
-RESTART_FROM_ROUTE = "18"  # "routeSuffix", e.g. "7"
+RESTART_FROM_ROUTE = "21"  # "routeSuffix", e.g. "7"
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -377,7 +377,7 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
 
         print(f"[CONFIG][R{route_suffix}][{idx}/{len(configs)}] {json_path}")
 
-        if executed_configs > 0 and executed_configs % 5 == 0:
+        if executed_configs > 0 and executed_configs % 3 == 0:
             if "adjust_game_time" in ACTION_TABLE:
                 print(f"[TIME][R{route_suffix}] adjust before config #{executed_configs + 1}")
                 ACTION_TABLE["adjust_game_time"]()

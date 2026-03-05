@@ -1,7 +1,7 @@
 import importlib.util
 import os
 
-ROUTE_SUFFIX = 23
+ROUTE_SUFFIX = 30
 SKIP_TELEPORT = 1
 
 os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_huaweipura"
@@ -9,7 +9,7 @@ os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_huaweipura"
 
 def _load_route_module(route_suffix: int):
     base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", "natlan", f"{route_suffix}.py")
+    route_path = os.path.join(base_dir, "routes", "hybrid", "natlan_v2", f"{route_suffix}.py")
     module_name = f"natlan_hybrid_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
