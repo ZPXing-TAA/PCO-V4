@@ -27,7 +27,7 @@ VIDEO_BASE = os.environ.get(
 GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
 
 ROUTE_SUFFIXES: Optional[List[int]] = None
-SKIP_ROUTE_SUFFIXES: List[int] = [4]
+SKIP_ROUTE_SUFFIXES: List[int] = [4,22]
 TOTAL_CONFIGS_PER_ROUTE = 80
 START_FROM_CONFIG = 1
 SKIP_RECORDED = 0
@@ -37,9 +37,9 @@ ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
 # Rollback controls (set in code)
 ROLLBACK_ENABLED = 0 # 1 to enable rollback
-ROLLBACK_CHECKPOINT = "21:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
+ROLLBACK_CHECKPOINT = "26:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
 ROLLBACK_ONLY = 1  # 1 to exit after rollback
-RESTART_FROM_ROUTE = "21"  # "routeSuffix", e.g. "7"
+RESTART_FROM_ROUTE = "30"  # "routeSuffix", e.g. "7"
 
 ACTION_BASE_COUNTS = {
     "natlan": {

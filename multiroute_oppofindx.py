@@ -11,10 +11,8 @@ os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_oppo"
 from engine.runner import ACTION_TABLE
 
 ROUTE_ROOT = os.path.join(os.path.dirname(__file__), "routes", "hybrid", "natlan_v2")
-PROJECT_ROOT = os.environ.get(
-    "AUTO_PROJECT_ROOT",
-    os.path.expanduser("~/CODEZONE/PCO/Power-Optimization"),
-)
+DEFAULT_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.environ.get("AUTO_PROJECT_ROOT", DEFAULT_PROJECT_ROOT)
 CONFIG_ROOT = os.environ.get("AUTO_CONFIG_ROOT_OFX", os.path.join(PROJECT_ROOT, "render_configs_ofx"))
 VIDEO_BASE = os.environ.get("AUTO_VIDEO_BASE_OFX", r"D:/recordings/ofx")
 GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
@@ -22,7 +20,7 @@ GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
 # None: 自动扫描 natlan 目录下的数字 route（1.py, 2.py, ...）
 # 示例: [1, 2, 3]
 ROUTE_SUFFIXES: Optional[List[int]] = None
-SKIP_ROUTE_SUFFIXES: List[int] = []
+SKIP_ROUTE_SUFFIXES: List[int] = [4, 16, 22]
 
 # 每条 route 跑多少个渲染配置
 TOTAL_CONFIGS_PER_ROUTE = 80
@@ -34,9 +32,9 @@ ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
 # Rollback controls (set in code)
 ROLLBACK_ENABLED = 0  # 1 to enable rollback
-ROLLBACK_CHECKPOINT = ""  # "routeSuffix:recordStartIndex", e.g. "7:17"
-ROLLBACK_ONLY = 0  # 1 to exit after rollback
-RESTART_FROM_ROUTE = ""  # "routeSuffix", e.g. "7"
+ROLLBACK_CHECKPOINT = "1:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
+ROLLBACK_ONLY = 1  # 1 to exit after rollback
+RESTART_FROM_ROUTE = "1"  # "routeSuffix", e.g. "7"
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -250,6 +248,29 @@ def _apply_rollback_if_needed(route_suffixes: List[int], action_counts_by_countr
     return True
 
 
+def _validate_expected_videos(
+    configs,
+    completed_count: int,
+    video_base_dir: str,
+    country: str,
+    route_label: str,
+    route_action_indices,
+):
+    missing = []
+    for _, config_id in configs[:completed_count]:
+        expected = _planned_video_paths(
+            video_base_dir=video_base_dir,
+            config_id=config_id,
+            country=country,
+            route_label=route_label,
+            route_action_indices=route_action_indices,
+        )
+        for path in expected:
+            if not os.path.exists(path):
+                missing.append(path)
+    return missing
+
+
 def _load_action_counts(path: str) -> Dict:
     if not os.path.exists(path):
         return {}
@@ -290,7 +311,7 @@ def run_route_hybrid(
     record_start_index = 0
     teleport_used = False
     try:
-        for i, step in enumerate(route):
+        for step in route:
             name = step[0]
             args = step[1:] if len(step) > 1 else []
             print(f"[ACTION] {name} {tuple(args)}")
@@ -346,6 +367,7 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
     route_action_indices = _build_route_action_indices(route, base_counts)
     route_end_counts = _route_end_counts(route, base_counts)
     completed = 0
+    executed_configs = 0
     transitioned_in_last_run = False
 
     print(f"\n[ROUTE] Start route {route_suffix}")
@@ -371,7 +393,15 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
                 continue
 
         print(f"[CONFIG][R{route_suffix}][{idx}/{len(configs)}] {json_path}")
-        # apply_render_config(json_path)
+
+        if executed_configs > 0 and executed_configs % 3 == 0:
+            if "adjust_game_time" in ACTION_TABLE:
+                print(f"[TIME][R{route_suffix}] adjust before config #{executed_configs + 1}")
+                ACTION_TABLE["adjust_game_time"]()
+            else:
+                print("[WARN] adjust_game_time not available in current action module.")
+
+        apply_render_config(json_path)
         is_last_config = completed == TOTAL_CONFIGS_PER_ROUTE - 1
         teleport_target = next_portal if (is_last_config and next_portal is not None) else current_portal
 
@@ -387,12 +417,27 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
         )
         if is_last_config and teleport_target == next_portal and teleport_used:
             transitioned_in_last_run = True
+        executed_configs += 1
         completed += 1
 
     if completed == TOTAL_CONFIGS_PER_ROUTE:
-        action_counts_by_country[country] = dict(route_end_counts)
-        _save_action_counts(GLOBAL_COUNT_PATH, action_counts_by_country)
-        print(f"[ROUTE] Finished route {route_suffix} ({completed}/{TOTAL_CONFIGS_PER_ROUTE})")
+        missing = _validate_expected_videos(
+            configs=configs,
+            completed_count=completed,
+            video_base_dir=VIDEO_BASE,
+            country=country,
+            route_label=route_label,
+            route_action_indices=route_action_indices,
+        )
+        if missing:
+            print(
+                f"[WARN] Route {route_suffix} completed configs but missing "
+                f"{len(missing)} expected videos; global action counts not saved."
+            )
+        else:
+            action_counts_by_country[country] = dict(route_end_counts)
+            _save_action_counts(GLOBAL_COUNT_PATH, action_counts_by_country)
+            print(f"[ROUTE] Finished route {route_suffix} ({completed}/{TOTAL_CONFIGS_PER_ROUTE})")
     else:
         print(
             f"[WARN] Route {route_suffix} only completed {completed}/{TOTAL_CONFIGS_PER_ROUTE}; "

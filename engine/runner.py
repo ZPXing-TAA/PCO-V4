@@ -27,6 +27,7 @@ ACTION_TABLE = {
     "jump": lambda: A.jump(),
     "util": lambda: A.util(),
     "long_util": lambda: A.long_util(),
+    "combat": lambda: A.combat(),
     "glide": A.glide,
     "turn_180": lambda: A.turn_180(),
     "turn_right_90": lambda: A.turn_right_90(),

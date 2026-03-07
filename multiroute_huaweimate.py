@@ -15,10 +15,8 @@ os.environ["GLOBAL_ACTIONS_MODULE"] = os.environ.get(
 from engine.runner import ACTION_TABLE
 
 ROUTE_ROOT = os.path.join(os.path.dirname(__file__), "routes", "hybrid", "natlan_v2")
-PROJECT_ROOT = os.environ.get(
-    "AUTO_PROJECT_ROOT",
-    os.path.expanduser("~/CODEZONE/PCO/Power-Optimization"),
-)
+DEFAULT_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.environ.get("AUTO_PROJECT_ROOT", DEFAULT_PROJECT_ROOT)
 CONFIG_ROOT = os.environ.get(
     "AUTO_CONFIG_ROOT_HUAWEIMATE",
     os.path.join(PROJECT_ROOT, "render_configs"),
@@ -32,7 +30,7 @@ GLOBAL_COUNT_PATH = os.path.join(VIDEO_BASE, "_action_counts.json")
 # None: 自动扫描 natlan 目录下的数字 route（1.py, 2.py, ...）
 # 示例: [1, 2, 3]
 ROUTE_SUFFIXES: Optional[List[int]] = None
-SKIP_ROUTE_SUFFIXES: List[int] = []
+SKIP_ROUTE_SUFFIXES: List[int] = [4, 22]
 
 # 每条 route 跑多少个渲染配置
 TOTAL_CONFIGS_PER_ROUTE = 80
@@ -42,9 +40,11 @@ SKIP_RECORDED = 0
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
-ROLLBACK_CHECKPOINT = os.environ.get("AUTO_ROLLBACK_CHECKPOINT", "").strip()
-ROLLBACK_ONLY = os.environ.get("AUTO_ROLLBACK_ONLY", "0").strip() == "1"
-RESTART_FROM_ROUTE = os.environ.get("AUTO_RESTART_FROM_ROUTE", "").strip()
+# Rollback controls (set in code)
+ROLLBACK_ENABLED = 0  # 1 to enable rollback
+ROLLBACK_CHECKPOINT = "26:1"  # "routeSuffix:recordStartIndex", e.g. "7:17"
+ROLLBACK_ONLY = 1  # 1 to exit after rollback
+RESTART_FROM_ROUTE = "30"  # "routeSuffix", e.g. "7"
 
 ACTION_BASE_COUNTS = {
     "natlan": {
@@ -189,13 +189,13 @@ def _parse_rollback_checkpoint(raw: str) -> Optional[Tuple[int, int]]:
     parts = [item.strip() for item in raw.split(":", 1)]
     if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
         raise ValueError(
-            "Invalid AUTO_ROLLBACK_CHECKPOINT format. Use 'routeSuffix:recordStartIndex', e.g. 7:17"
+            "Invalid ROLLBACK_CHECKPOINT format. Use 'routeSuffix:recordStartIndex', e.g. 7:17"
         )
 
     route_suffix = int(parts[0])
     record_start_index = int(parts[1])
     if route_suffix <= 0 or record_start_index <= 0:
-        raise ValueError("AUTO_ROLLBACK_CHECKPOINT values must be positive integers.")
+        raise ValueError("ROLLBACK_CHECKPOINT values must be positive integers.")
     return route_suffix, record_start_index
 
 
@@ -258,6 +258,29 @@ def _apply_rollback_if_needed(route_suffixes: List[int], action_counts_by_countr
     return True
 
 
+def _validate_expected_videos(
+    configs,
+    completed_count: int,
+    video_base_dir: str,
+    country: str,
+    route_label: str,
+    route_action_indices,
+):
+    missing = []
+    for _, config_id in configs[:completed_count]:
+        expected = _planned_video_paths(
+            video_base_dir=video_base_dir,
+            config_id=config_id,
+            country=country,
+            route_label=route_label,
+            route_action_indices=route_action_indices,
+        )
+        for path in expected:
+            if not os.path.exists(path):
+                missing.append(path)
+    return missing
+
+
 def _load_action_counts(path: str) -> Dict:
     if not os.path.exists(path):
         return {}
@@ -298,7 +321,7 @@ def run_route_hybrid(
     record_start_index = 0
     teleport_used = False
     try:
-        for i, step in enumerate(route):
+        for step in route:
             name = step[0]
             args = step[1:] if len(step) > 1 else []
             print(f"[ACTION] {name} {tuple(args)}")
@@ -381,8 +404,7 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
 
         print(f"[CONFIG][R{route_suffix}][{idx}/{len(configs)}] {json_path}")
 
-        # Adjust time before the 6th, 11th, 16th... actual recording run.
-        if executed_configs > 0 and executed_configs % 5 == 0:
+        if executed_configs > 0 and executed_configs % 3 == 0:
             if "adjust_game_time" in ACTION_TABLE:
                 print(f"[TIME][R{route_suffix}] adjust before config #{executed_configs + 1}")
                 ACTION_TABLE["adjust_game_time"]()
@@ -410,9 +432,23 @@ def run_one_route(route_suffix: int, configs, action_counts_by_country: Dict):
         completed += 1
 
     if completed == TOTAL_CONFIGS_PER_ROUTE:
-        action_counts_by_country[country] = dict(route_end_counts)
-        _save_action_counts(GLOBAL_COUNT_PATH, action_counts_by_country)
-        print(f"[ROUTE] Finished route {route_suffix} ({completed}/{TOTAL_CONFIGS_PER_ROUTE})")
+        missing = _validate_expected_videos(
+            configs=configs,
+            completed_count=completed,
+            video_base_dir=VIDEO_BASE,
+            country=country,
+            route_label=route_label,
+            route_action_indices=route_action_indices,
+        )
+        if missing:
+            print(
+                f"[WARN] Route {route_suffix} completed configs but missing "
+                f"{len(missing)} expected videos; global action counts not saved."
+            )
+        else:
+            action_counts_by_country[country] = dict(route_end_counts)
+            _save_action_counts(GLOBAL_COUNT_PATH, action_counts_by_country)
+            print(f"[ROUTE] Finished route {route_suffix} ({completed}/{TOTAL_CONFIGS_PER_ROUTE})")
     else:
         print(
             f"[WARN] Route {route_suffix} only completed {completed}/{TOTAL_CONFIGS_PER_ROUTE}; "
@@ -436,10 +472,10 @@ def run_multi_routes():
     effective_checkpoint = ROLLBACK_CHECKPOINT
     if RESTART_FROM_ROUTE:
         if not RESTART_FROM_ROUTE.isdigit() or int(RESTART_FROM_ROUTE) <= 0:
-            raise ValueError("AUTO_RESTART_FROM_ROUTE must be a positive integer route suffix.")
+            raise ValueError("RESTART_FROM_ROUTE must be a positive integer route suffix.")
         restart_route = int(RESTART_FROM_ROUTE)
         if restart_route not in route_suffixes:
-            raise ValueError(f"AUTO_RESTART_FROM_ROUTE={restart_route} not in active routes: {route_suffixes}")
+            raise ValueError(f"RESTART_FROM_ROUTE={restart_route} not in active routes: {route_suffixes}")
         restart_index = route_suffixes.index(restart_route)
         route_suffixes = route_suffixes[restart_index:]
         if not effective_checkpoint:
@@ -456,13 +492,13 @@ def run_multi_routes():
     rollback_applied = _apply_rollback_if_needed(
         rollback_route_suffixes,
         action_counts_by_country,
-        effective_checkpoint,
+        effective_checkpoint if ROLLBACK_ENABLED else "",
     )
     print(f"[INFO] Route list: {route_suffixes}")
     print(f"[INFO] Config count per route: {len(configs)}")
 
     if rollback_applied and ROLLBACK_ONLY:
-        print("[ROLLBACK] AUTO_ROLLBACK_ONLY=1, exit after rollback.")
+        print("[ROLLBACK] ROLLBACK_ONLY=1, exit after rollback.")
         return
 
     for idx, route_suffix in enumerate(route_suffixes):

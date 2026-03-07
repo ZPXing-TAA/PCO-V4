@@ -4,7 +4,7 @@ ROUTE = [
     ("run",5),
     ("record_stop",),
     ("record_start",),
-    ("run",5),
+    ("run",4),
     ("record_stop",),
     ("sleep",2,),
     ("turn_left_45",),

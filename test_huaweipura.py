@@ -1,7 +1,7 @@
 import importlib.util
 import os
 
-ROUTE_SUFFIX = 30
+ROUTE_SUFFIX = 26
 SKIP_TELEPORT = 1
 
 os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_huaweipura"

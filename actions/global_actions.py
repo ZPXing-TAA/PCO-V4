@@ -16,6 +16,9 @@ BASE_POINTS: PointMap = {
     "JUMP": (2510, 830),
     "SPRINT": (2500, 1125),
     "UTIL": (2060, 1120),
+    "FIG1": (0, 0),
+    "FIG2": (0, 0),
+    "FIG3": (0, 0),
     "TURN_180_L": (550, 300),
     "TURN_180_R": (1766, 300),
     "TURN_90_R_L": (550, 300),
@@ -55,6 +58,9 @@ POINT_GROUPS: Dict[str, Tuple[str, ...]] = {
     "JUMP": ("JUMP",),
     "SPRINT": ("SPRINT",),
     "UTIL": ("UTIL",),
+    "FIG1": ("FIG",),
+    "FIG2": ("FIG",),
+    "FIG3": ("FIG",),
     "TURN_180_L": ("TURN", "TURN_180"),
     "TURN_180_R": ("TURN", "TURN_180"),
     "TURN_90_R_L": ("TURN", "TURN_90_R"),
@@ -186,6 +192,32 @@ def build_actions(
         x, y = points["UTIL"]
         swipe(x, y, x, y, int(seconds * 1000))
 
+    def fig1():
+        tap(*points["FIG1"])
+
+    def fig2():
+        tap(*points["FIG2"])
+
+    def fig3():
+        tap(*points["FIG3"])
+
+    def combat():
+        fig2()
+        time.sleep(0.5)
+        long_util()
+        time.sleep(1)
+        fig3()
+        time.sleep(1)
+        util()
+        time.sleep(1)
+        fig1()
+        time.sleep(1)
+        util()
+        time.sleep(1)
+        long_attack(5)
+        fig2()
+        time.sleep(1)
+
     def glide(seconds):
         long_util(glide_hold_ms / 1000.0)
         time.sleep(glide_after_util_delay)
@@ -265,6 +297,10 @@ def build_actions(
         "run": run,
         "util": util,
         "long_util": long_util,
+        "fig1": fig1,
+        "fig2": fig2,
+        "fig3": fig3,
+        "combat": combat,
         "glide": glide,
         "sleep": sleep,
         "turn_180": turn_180,
