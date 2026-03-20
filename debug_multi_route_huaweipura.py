@@ -12,17 +12,15 @@ from engine.runner import ACTION_TABLE
 ROUTE_START = 11
 ROUTE_END = 22
 
-# route folder: "natlan" or "natlan_v2"
-ROUTE_SUBDIR = "natlan_v2"
+ROUTE_ROOT = os.path.join(os.path.dirname(__file__), "routes", "natlan_v2")
 
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 
 
 def _load_route_module(route_suffix: int):
-    base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", ROUTE_SUBDIR, f"{route_suffix}.py")
-    module_name = f"natlan_hybrid_{route_suffix}"
+    route_path = os.path.join(ROUTE_ROOT, f"{route_suffix}.py")
+    module_name = f"natlan_route_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to load route module from {route_path}")
@@ -69,7 +67,7 @@ def _run_route(route_suffix: int, route):
 
 def run_multi_routes():
     route_suffixes = _build_route_range(ROUTE_START, ROUTE_END)
-    print(f"[INFO] Route range: {route_suffixes} (folder: {ROUTE_SUBDIR}) | baseline mapping")
+    print(f"[INFO] Route range: {route_suffixes} (folder: natlan_v2) | baseline mapping")
 
     for index, route_suffix in enumerate(route_suffixes):
         route_module = _load_route_module(route_suffix)

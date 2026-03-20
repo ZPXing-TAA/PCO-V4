@@ -10,8 +10,8 @@ from tools.debug_run_route import debug_run_route
 
 def _load_route_module(route_suffix: int):
     base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", "natlan_v2", f"{route_suffix}.py")
-    module_name = f"natlan_hybrid_{route_suffix}"
+    route_path = os.path.join(base_dir, "routes", "natlan_v2", f"{route_suffix}.py")
+    module_name = f"natlan_route_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to load route module from {route_path}")

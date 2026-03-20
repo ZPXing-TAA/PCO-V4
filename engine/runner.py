@@ -8,6 +8,7 @@ try:
 except ModuleNotFoundError:
     A = importlib.import_module("actions.global_actions")
 
+
 def teleport(portal):
     A.open_map()
     time.sleep(1)
@@ -16,8 +17,10 @@ def teleport(portal):
     A.confirm_teleport()
     time.sleep(3)
 
+
 ACTION_TABLE = {
     "move": A.move,
+    "walk": A.walk,
     "climb": A.climb,
     "swim": A.swim,
     "run": A.run,
@@ -44,31 +47,3 @@ ACTION_TABLE = {
 
 if hasattr(A, "adjust_game_time"):
     ACTION_TABLE["adjust_game_time"] = lambda: A.adjust_game_time()
-
-def run_route(route, portal, recorder):
-    for step in route:
-        name = step[0]
-        args = step[1:] if len(step) > 1 else []
-
-        print(f"[ACTION] {name}")
-
-        if name == "record_start":
-            time.sleep(1)
-            recorder.start()
-
-        elif name == "record_stop":
-            recorder.stop()
-            time.sleep(1)
-
-        elif name == "teleport":
-            A.open_map()
-            time.sleep(1)
-            A.tap(*portal)
-            time.sleep(1)
-            A.confirm_teleport()
-            time.sleep(3)
-
-        else:
-            ACTION_TABLE[name](*args)
-
-        time.sleep(0.4)

@@ -9,8 +9,7 @@ from engine.runner import ACTION_TABLE
 ROUTE_START = 1
 ROUTE_END = 10
 
-# route 文件夹：可选 "natlan" 或 "natlan_v2"
-ROUTE_SUBDIR = "natlan_v2"
+ROUTE_ROOT = os.path.join(os.path.dirname(__file__), "routes", "natlan_v2")
 
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
@@ -21,9 +20,8 @@ DST_W = int(os.environ.get("AUTO_DST_W", "2772"))
 DST_H = int(os.environ.get("AUTO_DST_H", "1272"))
 
 def _load_route_module(route_suffix: int):
-    base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", ROUTE_SUBDIR, f"{route_suffix}.py")
-    module_name = f"natlan_hybrid_{route_suffix}"
+    route_path = os.path.join(ROUTE_ROOT, f"{route_suffix}.py")
+    module_name = f"natlan_route_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to load route module from {route_path}")
@@ -32,23 +30,15 @@ def _load_route_module(route_suffix: int):
     return module
 
 
-def _port_to_land(xp: int, yp: int, wp: int = 1272):
-    xl = yp
-    yl = (wp - 1) - xp
-    return xl, yl
-
-
 def _convert_xy(x: int, y: int):
     sx = DST_W / SRC_W
     sy = DST_H / SRC_H
     return round(x * sx), round(y * sy)
 
 
-def _build_current_portal(route_suffix: int, portal):
+def _build_current_portal(portal):
     current = list(portal)
-    current = list(_convert_xy(*current))
-    current = list(_port_to_land(*current))
-    return current
+    return list(_convert_xy(*current))
 
 
 def _build_route_range(start_suffix: int, end_suffix: int):
@@ -85,7 +75,7 @@ def _run_route(route_suffix: int, route):
 
 def run_multi_routes():
     route_suffixes = _build_route_range(ROUTE_START, ROUTE_END)
-    print(f"[INFO] Route range: {route_suffixes} (folder: {ROUTE_SUBDIR})")
+    print(f"[INFO] Route range: {route_suffixes} (folder: natlan_v2)")
 
     for index, route_suffix in enumerate(route_suffixes):
         route_module = _load_route_module(route_suffix)
@@ -101,7 +91,7 @@ def run_multi_routes():
                 f"Route {route_suffix} has no NEXT_PORTAL. "
                 "Please add NEXT_PORTAL=[x, y] in this route file."
             )
-        next_portal = _build_current_portal(route_suffix, next_portal_raw)
+        next_portal = _build_current_portal(next_portal_raw)
         print(f"[TRANSITION] Route {route_suffix} -> next via NEXT_PORTAL {next_portal}")
         ACTION_TABLE["teleport"](next_portal)
         if index < len(route_suffixes) - 1:

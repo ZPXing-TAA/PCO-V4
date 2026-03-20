@@ -157,6 +157,9 @@ def build_actions(
     def move(seconds):
         swipe(*points["MOVE_START"], *points["MOVE_END"], int(seconds * 1000))
 
+    def walk(seconds):
+        move(seconds)
+
     def climb(seconds):
         move(seconds)
 
@@ -287,6 +290,7 @@ def build_actions(
         "tap": tap,
         "swipe": swipe,
         "move": move,
+        "walk": walk,
         "climb": climb,
         "swim": swim,
         "attack": attack,

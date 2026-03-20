@@ -1,123 +1,88 @@
-# Auto_Scripts_v4（先映射，再微调）
+# Auto_Scripts_v4
 
-## 设计原则
+## 当前保留链路
 
-本版本遵循固定流程：
+项目已经收敛到 `routes/natlan_v2` 一条主链，只保留三类入口：
 
-1. 先做分辨率映射（Mapping）
-2. 再做偏置微调（Offset）
+- `debug_multi_route_*.py`：测试多路径切换，不录制。
+- `multiroute_*.py`：批量应用 render config 并录制多路径。
+- `test_*.py` / `test_*_v2.py`：单路径调试、route 设计和 portal 验证入口。
 
-基准文件有两个，地位相同：
+## 核心模块
 
-- 动作基准：`actions/global_actions.py`
-- 分辨率基准：`mapping/huaweipura.py`
+- `actions/global_actions.py`：统一动作实现、分辨率映射和 offset 叠加。
+- `actions/actions_*.py`：每台设备选择自己的 mapping 和 offsets。
+- `mapping/*.py`：设备分辨率定义。
+- `config/switcher.py`：应用 render config，并按当前动作模块分辨率自动映射 tap/swipe 坐标。
+- `recording/recorder.py` / `recording/scrcpy_recorder.py`：录屏封装。
+- `engine/runner.py`：导出当前动作表和传送动作。
+- `engine/route_segments.py`：根据 route 定义生成稳定 segment 身份和输出路径。
 
-其他设备一律基于这两个基准计算，不再复制整份动作实现。
+## Portal 与 Render Config 规则
 
-## 目录说明
+- `huaweipura` 是基线设备和基线坐标源。
+- route 文件里的 `PORTAL` / `NEXT_PORTAL` 都按 `huaweipura` ADB 横屏坐标维护。
+- 其他设备只做按分辨率比例缩放，不做额外旋转或 portrait-to-landscape 转换。
+- `render_configs` 是默认基线 render config 来源。
+- 设备脚本在运行时按当前动作模块分辨率自动缩放 json 里的 `tap/swipe` 坐标。
 
-- `actions/global_actions.py`：统一动作实现与映射逻辑
-- `mapping/*.py`：每台设备一个分辨率文件（仅 `WIDTH/HEIGHT`）
-- `actions/actions_*.py`：每台设备一个入口文件（选择 mapping + 可选 offsets）
-- `config/switcher.py`：渲染配置应用入口（按设备分辨率自动映射 tap/swipe 坐标）
+## Multi-route 录制规则
 
-## 现有设备文件
+- `route` 是最小重录单位。
+- 每次重录某条 route 时，会先清理该 route 的稳定输出目录，再完整重跑该 route 的全部 config。
+- 不再使用 `_action_counts.json`、`SKIP_RECORDED`、rollback checkpoint 或全局计数回档。
+- 多路径录制输出按稳定路径写入：
 
-- `mapping/huaweipura.py`
-- `mapping/huaweimate.py`
-- `mapping/oppo_findx9pro.py`
-- `actions/actions_huaweipura.py`
-- `actions/actions_huaweimate.py`
-- `actions/actions_oppo.py`
-
-当前设备文件里的 `OFFSETS` 默认都是 `{}`，即只做映射不做微调。
-
-## 新增设备详细步骤
-
-1. 新建分辨率文件
-   - 复制 `mapping/device_template.py`
-   - 重命名为 `mapping/<device>.py`
-   - 填入真实分辨率：
-
-```python
-WIDTH = 0
-HEIGHT = 0
+```text
+<video_base>/<label>/<country>_r<route:02d>_<label><occurrence:02d>/<config_id>.mp4
 ```
 
-2. 新建设备动作入口
-   - 复制 `actions/actions_device_template.py`
-   - 重命名为 `actions/actions_<device>.py`
-   - 设置：
+示例：
 
-```python
-MAPPING_MODULE = "mapping.<device>"
-OFFSETS = {}
-bind_actions(globals(), mapping_module=MAPPING_MODULE, offsets=OFFSETS)
-```
+- `glide/natlan_r07_glide02/High_60_High_Low.mp4`
+- `move/natlan_r22_move02/High_60_High_Low.mp4`
+- `run/natlan_r30_run03/High_60_High_Low.mp4`
 
-3. 在测试/录制脚本中切换模块
-   - 把脚本里的 `GLOBAL_ACTIONS_MODULE` 改成：
+occurrence 编号规则：
 
-```python
-os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_<device>"
-```
+- 编号按同一 label 在单条 route 内出现的次数递增。
+- 例如一条 route 里依次录到 `glide`、`run`、`run`，目录会是 `glide01`、`run01`、`run02`。
+- 不再使用整条 route 的统一 `s01/s02/s03` 顺序命名。
 
-4. 先跑映射结果（不加偏置）
-   - 保持 `OFFSETS = {}`
-   - 先验证大多数动作是否可用
+标签规则：
 
-5. 再做少量微调
-   - 仅对偏差动作添加 key，不需要全量配置
-   - 示例：
+- 标签由每个 `record_start` 之后第一个真实动作决定。
+- 当前不会重命名 `move`。
+- `walk` 是新注册的显式动作；如果 route 里写的是 `walk`，标签就是 `walk`。
 
-```python
-OFFSETS = {
-    "MOVE": (0, 0),
-    "ATTACK": (0, 0),
-    "TURN_180_R": (0, 0),
-}
-```
+## Multi-route 控制项
 
-## Offset 生效顺序
+活跃控制面只保留 route 级别：
+
+- `ROUTE_SUFFIXES`
+- `SKIP_ROUTE_SUFFIXES`
+- `START_FROM_ROUTE`
+- `END_AT_ROUTE`
+
+对应环境变量：
+
+- `AUTO_SKIP_ROUTE_SUFFIXES`
+- `AUTO_START_FROM_ROUTE`
+- `AUTO_END_AT_ROUTE`
+
+每条 route 默认最多采集 `TOTAL_CONFIGS_PER_ROUTE` 个 config，默认从 `render_configs` 目录按排序取前 N 个。
+
+## 设备接入
+
+1. 复制 `mapping/device_template.py` 为 `mapping/<device>.py`，填入真实 `WIDTH/HEIGHT`。
+2. 复制 `actions/actions_device_template.py` 为 `actions/actions_<device>.py`，设置 `MAPPING_MODULE` 和 `OFFSETS`。
+3. 在对应测试或录制脚本里把 `GLOBAL_ACTIONS_MODULE` 指向 `actions.actions_<device>`。
+4. 先用空 `OFFSETS = {}` 验证映射，再只对偏差动作补少量 offset。
+
+## Offset 规则
 
 最终坐标 = 映射后的坐标 + `GLOBAL` + `GROUP` + `POINT`
 
 - `GLOBAL`：全局偏移
-- `GROUP`：动作组偏移（如 `MOVE` / `TURN` / `ATTACK`）
-- `POINT`：单个点位偏移（如 `MOVE_START` / `TURN_180_R`）
-
-## Render Config 映射规则
-
-- 基准渲染配置目录：`/Users/xingzhengpeng/CODEZONE/PCO/Power-Optimization/render_configs`
-- 该目录视为 `huaweipura` 基准坐标。
-- 调用 `apply_render_config(json_path)` 时，会自动读取当前 `GLOBAL_ACTIONS_MODULE` 对应的
-  `BASE_RESOLUTION/TARGET_RESOLUTION`，将 json 中 `tap/swipe` 坐标按分辨率比例映射到当前设备。
-- 因此同一份基准 `render_configs` 可复用于所有设备；只有个别不准时再通过设备 `OFFSETS` 微调动作。
-
-## 兼容性说明（与原 routes）
-
-- 路线文件（`routes/*`）不需要改。
-- `engine/runner.py` 的调用方式不变，仍通过 `GLOBAL_ACTIONS_MODULE` 动态加载动作模块。
-- 只要脚本正确指向 `actions.actions_<device>`，原有 route 的动作名可以按原流程执行。
-
-注意：兼容性指“执行链路不破坏”。动作落点精度取决于分辨率是否正确、以及后续是否需要补少量 `OFFSETS`。
-
-
-## Multi-route 全局计数回档
-
-当你发现某条 route 的录制从某个 `record_start` 开始错位时，不需要再手动逐个动作改 `_action_counts.json`。
-
-可在 `multiroute_*.py` 启动前设置：
-
-- `AUTO_RESTART_FROM_ROUTE=<route后缀>`（推荐）
-  - 例：`AUTO_RESTART_FROM_ROUTE=7`
-  - 含义：从 route 7 开始、从第一个 config 重新录制。
-  - 会自动把全局计数回退到 `7:1`（即 route 7 第一个 `record_start` 之前），不需要手动改 `_action_counts.json`。
-  - 回退时会按完整 route 序列重建到目标 route 前，所以 **pull 后第一次回退也不需要手动改全局计数**。
-- `AUTO_ROLLBACK_CHECKPOINT=<route后缀>:<record_start序号>`（高级）
-  - 例：`AUTO_ROLLBACK_CHECKPOINT=7:17`
-  - 含义：把全局计数精确回退到「route 7 的第 17 个 `record_start` 执行之前」。
-- `AUTO_ROLLBACK_ONLY=1`
-  - 仅执行回档并写回 `_action_counts.json`，随后退出，不开始录制。
-
-如果不设置这些环境变量，脚本行为与原来一致。
+- `GROUP`：动作组偏移，例如 `MOVE`、`TURN`、`ATTACK`
+- `POINT`：单个点位偏移，例如 `MOVE_START`、`TURN_180_R`

@@ -3,19 +3,20 @@ import os
 
 ROUTE_SUFFIX = 9
 
-
 os.environ["GLOBAL_ACTIONS_MODULE"] = "actions.actions_oppo"
+
 
 def _load_route_module(route_suffix: int):
     base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", "natlan", f"{route_suffix}.py")
-    module_name = f"natlan_hybrid_{route_suffix}"
+    route_path = os.path.join(base_dir, "routes", "natlan_v2", f"{route_suffix}.py")
+    module_name = f"natlan_route_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to load route module from {route_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
 
 route_module = _load_route_module(ROUTE_SUFFIX)
 ROUTE = route_module.ROUTE
@@ -32,13 +33,8 @@ def _convert_xy(x: int, y: int):
     sy = DST_H / SRC_H
     return round(x * sx), round(y * sy)
 
-def port_to_land(xp: int, yp: int, Wp: int = 1272):
-    xl = yp
-    yl = (Wp - 1) - xp
-    return xl, yl
 
 PORTAL = list(_convert_xy(*PORTAL))
-PORTAL = list(port_to_land(*PORTAL))
 
 from recording.recorder import Recorder
 from tools.debug_run_route import debug_run_route

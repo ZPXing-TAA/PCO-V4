@@ -12,36 +12,27 @@ from engine.runner import ACTION_TABLE
 ROUTE_START = 1
 ROUTE_END = 10
 
-# route 文件夹：可选 "natlan" 或 "natlan_v2"
-ROUTE_SUBDIR = "natlan_v2"
+ROUTE_ROOT = os.path.join(os.path.dirname(__file__), "routes", "natlan_v2")
 
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 
-# Portal resolution mapping: source (route data) -> target (Huawei Mate)
-SRC_W = int(os.environ.get("AUTO_SRC_W", "2772"))
-SRC_H = int(os.environ.get("AUTO_SRC_H", "1272"))
+# Portal resolution mapping: baseline (huaweipura) -> target (Huawei Mate)
+SRC_W = int(os.environ.get("AUTO_SRC_W", "2848"))
+SRC_H = int(os.environ.get("AUTO_SRC_H", "1276"))
 DST_W = int(os.environ.get("AUTO_DST_W", "2720"))
 DST_H = int(os.environ.get("AUTO_DST_H", "1260"))
-PORT_W = int(os.environ.get("AUTO_PORT_W", str(DST_H)))
 
 
 def _load_route_module(route_suffix: int):
-    base_dir = os.path.dirname(__file__)
-    route_path = os.path.join(base_dir, "routes", "hybrid", ROUTE_SUBDIR, f"{route_suffix}.py")
-    module_name = f"natlan_hybrid_{route_suffix}"
+    route_path = os.path.join(ROUTE_ROOT, f"{route_suffix}.py")
+    module_name = f"natlan_route_{route_suffix}"
     spec = importlib.util.spec_from_file_location(module_name, route_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Failed to load route module from {route_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-def _port_to_land(xp: int, yp: int, wp: int = PORT_W):
-    xl = yp
-    yl = (wp - 1) - xp
-    return xl, yl
 
 
 def _convert_xy(x: int, y: int):
@@ -52,9 +43,7 @@ def _convert_xy(x: int, y: int):
 
 def _build_portal(portal):
     current = list(portal)
-    current = list(_convert_xy(*current))
-    current = list(_port_to_land(*current))
-    return current
+    return list(_convert_xy(*current))
 
 
 def _build_route_range(start_suffix: int, end_suffix: int):
@@ -92,8 +81,8 @@ def _run_route(route_suffix: int, route):
 def run_multi_routes():
     route_suffixes = _build_route_range(ROUTE_START, ROUTE_END)
     print(
-        f"[INFO] Route range: {route_suffixes} (folder: {ROUTE_SUBDIR}) | "
-        f"map {SRC_W}x{SRC_H} -> {DST_W}x{DST_H}, port_w={PORT_W}"
+        f"[INFO] Route range: {route_suffixes} (folder: natlan_v2) | "
+        f"map {SRC_W}x{SRC_H} -> {DST_W}x{DST_H}"
     )
 
     for index, route_suffix in enumerate(route_suffixes):
