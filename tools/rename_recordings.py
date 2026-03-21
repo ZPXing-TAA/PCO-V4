@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from engine.route_segments import RouteSegment, build_route_segments
 
-DEFAULT_BASE_DIR = Path("/Users/xingzhengpeng/CODEZONE/PCO/Power-Optimization/Recordings")
+DEFAULT_BASE_DIR = Path("D:\recordings")
 DEFAULT_ROUTE_ROOT = PROJECT_ROOT / "routes" / "natlan_v2"
 
 LEGACY_DIR_PATTERN = re.compile(
