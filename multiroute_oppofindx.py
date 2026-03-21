@@ -3,7 +3,7 @@ import os
 import time
 from typing import List, Optional, Sequence, Tuple
 
-from config.switcher import apply_render_config
+from config.switcher import apply_render_config, load_action_resolution, scale_xy
 from engine.route_segments import (
     RouteSegment,
     build_route_segments,
@@ -35,11 +35,10 @@ END_AT_ROUTE: Optional[int] = None
 STEP_DELAY = 0.4
 ROUTE_GAP = 1.0
 RECORD_START_SETTLE_SEC = float(os.environ.get("AUTO_RECORD_START_SETTLE_SEC", "0.3"))
-
-SRC_W = int(os.environ.get("AUTO_SRC_W", "2848"))
-SRC_H = int(os.environ.get("AUTO_SRC_H", "1276"))
-DST_W = int(os.environ.get("AUTO_DST_W", "2772"))
-DST_H = int(os.environ.get("AUTO_DST_H", "1272"))
+PORTAL_RESOLUTION = load_action_resolution()
+if PORTAL_RESOLUTION is None:
+    raise RuntimeError("Failed to load action resolution for portal scaling.")
+PORTAL_SRC_RESOLUTION, PORTAL_DST_RESOLUTION = PORTAL_RESOLUTION
 
 
 def _resolve_skip_route_suffixes() -> List[int]:
@@ -68,12 +67,6 @@ def _resolve_optional_route_suffix(default_value: Optional[int], env_key: str) -
     if not raw.isdigit() or int(raw) <= 0:
         raise ValueError(f"{env_key} must be a positive integer route suffix.")
     return int(raw)
-
-
-def _convert_xy(x: int, y: int) -> Tuple[int, int]:
-    sx = DST_W / SRC_W
-    sy = DST_H / SRC_H
-    return round(x * sx), round(y * sy)
 
 
 def _load_route_module(route_suffix: int):
@@ -119,7 +112,7 @@ def _apply_route_window(route_suffixes: List[int]) -> List[int]:
 
 
 def _build_portal(portal_xy) -> List[int]:
-    return list(_convert_xy(*portal_xy))
+    return list(scale_xy(portal_xy[0], portal_xy[1], PORTAL_SRC_RESOLUTION, PORTAL_DST_RESOLUTION))
 
 
 def _collect_configs(root_folder: str, limit: int) -> List[Tuple[str, str]]:
